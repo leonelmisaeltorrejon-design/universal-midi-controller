@@ -59,29 +59,33 @@ export function useController(): UseControllerReturn {
   )
 
   const enterSoloMode = useCallback(
-    (id: string): string[] => {
+    (id: string): { toActivate: string[]; toDeactivate: string[] } => {
       const preset = config.presets.find((p: PresetPad) => p.id === id)
-      if (!preset) return []
+      if (!preset) return { toActivate: [], toDeactivate: [] }
 
       const toActivate: string[] = []
+      const toDeactivate: string[] = []
+
+      // SOLO is a complete scene: explicitly send the target state of EVERY FX.
       for (const fx of config.fxPads) {
-        const shouldActivate = preset.fxSoloStates?.[fx.id] ?? false
-        if (shouldActivate && !fxStates[fx.id]) {
+        const target = preset.fxSoloStates?.[fx.id] ?? false
+        if (target) {
           toActivate.push(fx.id)
+        } else {
+          toDeactivate.push(fx.id)
         }
       }
 
-      setFxSnapshot({ ...fxStates })
       setSoloPresetId(id)
-      setFxStates((prev) => {
-        const next = { ...prev }
+      setFxStates(() => {
+        const next: Record<string, boolean> = {}
         for (const fx of config.fxPads) {
-          if (preset.fxSoloStates?.[fx.id]) next[fx.id] = true
+          next[fx.id] = preset.fxSoloStates?.[fx.id] ?? false
         }
         return next
       })
 
-      return toActivate
+      return { toActivate, toDeactivate }
     },
     [config, fxStates],
   )
