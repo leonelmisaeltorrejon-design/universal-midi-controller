@@ -76,6 +76,7 @@ export function useController(): UseControllerReturn {
         }
       }
 
+      setFxSnapshot({ ...fxStates })      
       setSoloPresetId(id)
       setFxStates(() => {
         const next: Record<string, boolean> = {}
