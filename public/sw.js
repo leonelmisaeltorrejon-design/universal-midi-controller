@@ -1,69 +1,86 @@
-const CACHE_NAME = 'umc-v3'
-const STATIC_CACHE = 'umc-static-v3'
+const BASE = '/universal-midi-controller/'
+const CACHE_NAME = 'umc-vite-v1'
 
-self.addEventListener('install', (e) => {
-  e.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.add('/universal-midi-controller/'))
+const APP_SHELL = [
+  BASE,
+  `${BASE}index.html`,
+  `${BASE}manifest.webmanifest`,
+  `${BASE}icon-192.png`,
+  `${BASE}icon-512.png`,
+]
+
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL))
   )
+
   self.skipWaiting()
 })
 
-self.addEventListener('activate', (e) => {
-  e.waitUntil(
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(
         keys
-          .filter((k) => k !== CACHE_NAME && k !== STATIC_CACHE)
-          .map((k) => caches.delete(k))
+          .filter((key) => key !== CACHE_NAME)
+          .map((key) => caches.delete(key))
       )
     )
   )
+
   self.clients.claim()
 })
 
-self.addEventListener('fetch', (e) => {
-  const { request } = e
+self.addEventListener('fetch', (event) => {
+  const request = event.request
+
+  if (request.method !== 'GET') return
+
   const url = new URL(request.url)
 
-  // Assets estáticos do Next.js → Cache-First
-  if (
-    url.pathname.startsWith('/universal-midi-controller/_next/static/') ||
-    url.pathname.startsWith('/universal-midi-controller/static/')
-  ) {
-    e.respondWith(
-      caches.match(request).then(
-        (cached) =>
-          cached ||
-          fetch(request).then((res) => {
-            const clone = res.clone()
-            caches.open(STATIC_CACHE).then((c) => c.put(request, clone))
-            return res
-          })
-      )
-    )
-    return
-  }
+  if (url.origin !== self.location.origin) return
 
-  // Navegação (HTML) → Network-First com fallback offline
+  // Navegación: primero Internet, luego caché.
   if (request.mode === 'navigate') {
-    e.respondWith(
+    event.respondWith(
       fetch(request)
-        .then((res) => {
-          const clone = res.clone()
-          caches.open(CACHE_NAME).then((c) => c.put(request, clone))
-          return res
+        .then((response) => {
+          const clone = response.clone()
+
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(request, clone)
+          })
+
+          return response
         })
         .catch(() =>
-          caches
-            .match(request)
-            .then((cached) => cached || caches.match('/universal-midi-controller/'))
+          caches.match(request).then(
+            (cached) => cached || caches.match(BASE)
+          )
         )
     )
+
     return
   }
 
-  // Demais recursos → Cache-First
-  e.respondWith(
-    caches.match(request).then((cached) => cached || fetch(request))
+  // Recursos estáticos: caché primero.
+  event.respondWith(
+    caches.match(request).then((cached) => {
+      if (cached) return cached
+
+      return fetch(request).then((response) => {
+        if (!response || response.status !== 200) {
+          return response
+        }
+
+        const clone = response.clone()
+
+        caches.open(CACHE_NAME).then((cache) => {
+          cache.put(request, clone)
+        })
+
+        return response
+      })
+    })
   )
 })

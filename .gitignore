@@ -41,3 +41,20 @@ yarn-error.log*
 next-env.d.ts
 
 certificates
+# Vite
+dist/
+
+# Next.js generated files
+.next/
+
+# Dependencies
+node_modules/
+
+# Temporary backups
+*.bak
+*.backup
+
+# Android6 temporary backups
+*.android6-backup
+*.android6-backup2
+*.next-backup
